@@ -497,6 +497,7 @@ public class MeasurementPerformer extends Activity {
                         public void onTick(long millisUntilFinished) {
                             barProgressDialog3.incrementProgressBy(1);
                             sensorManager.registerListener(magneticListener, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_NORMAL);
+                            // Uncomment the line below in order to enable non calibrated magnetic field measurements as well
                             //sensorManager.registerListener(magneticUncalibratedListener, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED), SensorManager.SENSOR_DELAY_NORMAL);
                         }
 
