@@ -62,6 +62,16 @@
         <EditText
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:inputType="number"
+            android:ems="10"
+            android:id="@+id/NoOfMagneticMeasurementsEditText"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="10dp"
+            android:hint="@string/MagneticMeasuremets" />
+
+        <EditText
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:id="@+id/serverIpEditText"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="10dp"
@@ -83,14 +93,14 @@
             android:text="@string/Measure"
             android:id="@+id/measureButton"
             android:layout_gravity="center_horizontal"
-            android:layout_marginTop="30dp" />
+            android:layout_marginTop="10dp" />
 
         <CheckBox
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/manually"
             android:id="@+id/manuallyMeasurementsCheckBox"
-            android:layout_marginTop="30dp"
+            android:layout_marginTop="10dp"
             android:checked="false"/>
 
         <CheckBox
@@ -98,7 +108,7 @@
             android:layout_height="wrap_content"
             android:text="@string/screenOn"
             android:id="@+id/screenOnCheckBox"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="5dp"
             android:checked="true"/>
 
         <Chronometer

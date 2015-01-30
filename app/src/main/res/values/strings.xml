@@ -7,6 +7,7 @@
     <string name="Area">Measuring Area Id</string>
     <string name="Measure">Measure</string>
     <string name="WifiMeasuremets">WiFi Number of Measurements</string>
+    <string name="MagneticMeasuremets">Magnetic Number of Measurements</string>
     <string name="serverIP">Server IP</string>
     <string name="serverPort">Server Port</string>
     <string name="BtMeasurements">BT Number of Measurements</string>

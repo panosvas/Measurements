@@ -2,7 +2,6 @@ package tsl.measurements;
 
 import android.app.Activity;
 import android.app.Application;
-import android.app.Fragment;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -10,6 +9,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -17,17 +20,16 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Message;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -59,6 +61,8 @@ import java.util.Date;
 import java.util.List;
 
 import tsl.measurements.bluetooth.BTStats;
+import tsl.measurements.magnetic.MagneticCalibrated;
+import tsl.measurements.magnetic.MagneticUncalibrated;
 import tsl.measurements.wifi.WifiStats;
 
 
@@ -66,16 +70,21 @@ public class MeasurementPerformer extends Activity {
 
     ArrayList<WifiStats> wifiStats = new ArrayList<WifiStats>();
     ArrayList<BTStats> btStats = new ArrayList<BTStats>();
+    ArrayList<MagneticCalibrated> magneticCalibratedStats = new ArrayList<MagneticCalibrated>();
+    ArrayList<MagneticUncalibrated> magneticUncalibratedStats = new ArrayList<MagneticUncalibrated>();
     EditText areaText;
     String area;
     EditText wifiMeasurementsCountText;
     String wifiMeasurementsCount;
     EditText btMeasurementsCountText;
     String btMeasurementsCount;
+    EditText magneticMeasurementsCountText;
+    String magneticMeasurementsCount;
     EditText serverIpText;
     EditText serverPortText;
     ProgressDialog barProgressDialog;
     ProgressDialog barProgressDialog2;
+    ProgressDialog barProgressDialog3;
     ProgressDialog ringProgressDialog;
     CheckBox checkBoxManually;
     CheckBox checkBoxScreen;
@@ -85,6 +94,8 @@ public class MeasurementPerformer extends Activity {
     int btCount = 0;
     int wifiCount = 0;
     Chronometer chronometer;
+    SensorManager sensorManager;
+    CountDownTimer magneticCountDownTimer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,7 +104,7 @@ public class MeasurementPerformer extends Activity {
         setContentView(R.layout.activity_measurement_performer);
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        getWindow().addFlags(WindowManager.LayoutParams. FLAG_LAYOUT_IN_SCREEN);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN);
 
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
@@ -112,6 +123,8 @@ public class MeasurementPerformer extends Activity {
         serverPortText = (EditText) findViewById(R.id.serverPortEditText);
         btMeasurementsCountText = (EditText) findViewById(R.id.NoOfBTMeasurementsEditText);
         btMeasurementsCountText.setEnabled(false);
+        magneticMeasurementsCountText = (EditText) findViewById(R.id.NoOfMagneticMeasurementsEditText);
+        magneticMeasurementsCountText.setEnabled(false);
 
         measureButton = (Button) findViewById(R.id.measureButton);
         measureButton.setEnabled(false);
@@ -122,18 +135,22 @@ public class MeasurementPerformer extends Activity {
         UDPClient udpClient = new UDPClient();
         new Thread(udpClient).start();
 
+        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+
         checkBoxManually.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked){
+                if (isChecked) {
                     areaText.setEnabled(true);
                     wifiMeasurementsCountText.setEnabled(true);
                     btMeasurementsCountText.setEnabled(true);
+                    magneticMeasurementsCountText.setEnabled(true);
                     measureButton.setEnabled(true);
-                } else{
+                } else {
                     areaText.setEnabled(false);
                     wifiMeasurementsCountText.setEnabled(false);
                     btMeasurementsCountText.setEnabled(false);
+                    magneticMeasurementsCountText.setEnabled(false);
                     measureButton.setEnabled(false);
                 }
             }
@@ -142,10 +159,10 @@ public class MeasurementPerformer extends Activity {
         checkBoxScreen.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked){
+                if (isChecked) {
                     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                    getWindow().addFlags(WindowManager.LayoutParams. FLAG_LAYOUT_IN_SCREEN);
-                } else{
+                    getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN);
+                } else {
                     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                     getWindow().clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN);
                 }
@@ -162,20 +179,25 @@ public class MeasurementPerformer extends Activity {
                 serverPortText = (EditText) findViewById(R.id.serverPortEditText);
                 btMeasurementsCountText = (EditText) findViewById(R.id.NoOfBTMeasurementsEditText);
                 btMeasurementsCount = btMeasurementsCountText.getText().toString();
+                magneticMeasurementsCountText = (EditText) findViewById(R.id.NoOfMagneticMeasurementsEditText);
+                magneticMeasurementsCount = magneticMeasurementsCountText.getText().toString();
 
                 btCount = 0;
                 wifiCount = 0;
                 wifiStats = new ArrayList<WifiStats>();
                 btStats = new ArrayList<BTStats>();
+                magneticCalibratedStats = new ArrayList<MagneticCalibrated>();
+                magneticUncalibratedStats = new ArrayList<MagneticUncalibrated>();
 
 
-                if (areaText.getText() != null && wifiMeasurementsCountText.getText() != null && serverIpText.getText() != null && serverPortText.getText() != null && btMeasurementsCountText.getText() != null) {
-                    if (!areaText.getText().toString().equals("") && !wifiMeasurementsCountText.getText().toString().equals("") && !serverIpText.getText().toString().equals("") && !serverPortText.getText().toString().equals("") && !btMeasurementsCountText.getText().toString().equals("")) {
+                if (areaText.getText() != null && wifiMeasurementsCountText.getText() != null && serverIpText.getText() != null && serverPortText.getText() != null && btMeasurementsCountText.getText() != null && magneticMeasurementsCountText.getText() != null) {
+                    if (!areaText.getText().toString().equals("") && !wifiMeasurementsCountText.getText().toString().equals("") && !serverIpText.getText().toString().equals("") && !serverPortText.getText().toString().equals("") && !btMeasurementsCountText.getText().toString().equals("") && !magneticMeasurementsCountText.getText().toString().equals("")) {
                         System.out.println(areaText.getText().toString());
                         System.out.println(wifiMeasurementsCountText.getText().toString());
                         System.out.println(serverIpText.getText().toString());
                         System.out.println(serverPortText.getText().toString());
                         System.out.println(btMeasurementsCountText.getText().toString());
+                        System.out.println(magneticMeasurementsCountText.getText().toString());
 
                         chronometer.setBase(SystemClock.elapsedRealtime());
                         chronometer.setFormat("Elapsed time: %s");
@@ -201,6 +223,82 @@ public class MeasurementPerformer extends Activity {
         });
 
     }
+
+    private SensorEventListener magneticListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+
+
+            if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
+
+                DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyy HH:mm:ss");
+                Date date = new Date();
+                String time = dateFormat.format(date);
+
+                Log.i("INFO", String.valueOf(event.values[0]));
+                Log.i("INFO", String.valueOf(event.values[1]));
+                Log.i("INFO", String.valueOf(event.values[2]));
+
+                MagneticCalibrated magneticCalibrated = new MagneticCalibrated();
+
+                magneticCalibrated.setArea(area);
+                magneticCalibrated.setxValue(String.valueOf(event.values[0]));
+                magneticCalibrated.setyValue(String.valueOf(event.values[1]));
+                magneticCalibrated.setzValue(String.valueOf(event.values[2]));
+                magneticCalibrated.setTime(time);
+
+                magneticCalibratedStats.add(magneticCalibrated);
+
+                sensorManager.unregisterListener(magneticListener);
+            }
+
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+        }
+    };
+
+    private SensorEventListener magneticUncalibratedListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED) {
+
+                DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyy HH:mm:ss");
+                Date date = new Date();
+                String time = dateFormat.format(date);
+
+                Log.i("INFO", String.valueOf(event.values[0]));
+                Log.i("INFO", String.valueOf(event.values[1]));
+                Log.i("INFO", String.valueOf(event.values[2]));
+                Log.i("INFO", String.valueOf(event.values[3]));
+                Log.i("INFO", String.valueOf(event.values[4]));
+                Log.i("INFO", String.valueOf(event.values[5]));
+
+                MagneticUncalibrated magneticUncalibrated = new MagneticUncalibrated();
+
+                magneticUncalibrated.setArea(area);
+                magneticUncalibrated.setxValueUncalib(String.valueOf(event.values[0]));
+                magneticUncalibrated.setyValueUncalib(String.valueOf(event.values[1]));
+                magneticUncalibrated.setzValueUncalib(String.valueOf(event.values[2]));
+                magneticUncalibrated.setxBias(String.valueOf(event.values[3]));
+                magneticUncalibrated.setyBias(String.valueOf(event.values[4]));
+                magneticUncalibrated.setzBias(String.valueOf(event.values[5]));
+                magneticUncalibrated.setTime(time);
+
+                magneticUncalibratedStats.add(magneticUncalibrated);
+
+                sensorManager.unregisterListener(magneticUncalibratedListener);
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+        }
+    };
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -358,8 +456,7 @@ public class MeasurementPerformer extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             // TODO Auto-generated method stub
-            if(intent.getAction().equalsIgnoreCase("android.bluetooth.device.action.FOUND"))
-            {
+            if (intent.getAction().equalsIgnoreCase("android.bluetooth.device.action.FOUND")) {
                 DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyy HH:mm:ss");
                 Date date = new Date();
                 String time = dateFormat.format(date);
@@ -378,17 +475,15 @@ public class MeasurementPerformer extends Activity {
 
                 btStats.add(btStat);
 
-                System.out.println((device.getName() + " " + device.getAddress()) + " RSSI: " +rssi);
+                System.out.println((device.getName() + " " + device.getAddress()) + " RSSI: " + rssi);
             }
-            if(intent.getAction().equalsIgnoreCase("android.bluetooth.adapter.action.DISCOVERY_STARTED"))
-            {
+            if (intent.getAction().equalsIgnoreCase("android.bluetooth.adapter.action.DISCOVERY_STARTED")) {
                 System.out.println("BT Measurement STARTED");
                 barProgressDialog2.incrementProgressBy(1);
                 btCount = btCount + 1;
                 System.out.println("BT Measurement: " + btCount + "...");
             }
-            if(intent.getAction().equalsIgnoreCase("android.bluetooth.adapter.action.DISCOVERY_FINISHED"))
-            {
+            if (intent.getAction().equalsIgnoreCase("android.bluetooth.adapter.action.DISCOVERY_FINISHED")) {
                 System.out.println("BT Measurement FINISHED");
 
                 if (btCount < Integer.parseInt(btMeasurementsCount)) {
@@ -397,28 +492,58 @@ public class MeasurementPerformer extends Activity {
 
                     barProgressDialog2.dismiss();
 
-                    ringProgressDialog = ProgressDialog.show(MeasurementPerformer.this, "Please wait...", "Uploading to Server...", true);
-                    ringProgressDialog.setCancelable(false);
-                    ringProgressDialog.show();
+                    CountDownTimer magneticCountDownTimer = new CountDownTimer((Integer.valueOf(magneticMeasurementsCount) + 1) * 1000, 1000) {
+                        @Override
+                        public void onTick(long millisUntilFinished) {
+                            barProgressDialog3.incrementProgressBy(1);
+                            sensorManager.registerListener(magneticListener, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_NORMAL);
+                            //sensorManager.registerListener(magneticUncalibratedListener, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED), SensorManager.SENSOR_DELAY_NORMAL);
+                        }
 
-                    Gson gson = new Gson();
+                        @Override
+                        public void onFinish() {
 
-                    String jsonWifiPost = gson.toJson(wifiStats);
-                    String jsonBTPost = gson.toJson(btStats);
+                            barProgressDialog3.dismiss();
 
-                    String url;
-                    try {
-                        url = "http://" + serverIpText.getText().toString() + ":" + serverPortText.getText().toString() + "/IndoorPositioningServer/monitor/measurementService?WiFiMeasurements=" + URLEncoder.encode(jsonWifiPost, "UTF-8") + "&BTMeasurements=" + URLEncoder.encode(jsonBTPost, "UTF-8");
-                        System.out.println(url);
-                        new RestClient().execute(url);
-                    } catch (UnsupportedEncodingException e) {
-                        e.printStackTrace();
-                    }
+                            ringProgressDialog = ProgressDialog.show(MeasurementPerformer.this, "Please wait...", "Uploading to Server...", true);
+                            ringProgressDialog.setCancelable(false);
+                            ringProgressDialog.show();
+
+                            Gson gson = new Gson();
+
+                            String jsonWifiPost = gson.toJson(wifiStats);
+                            String jsonBTPost = gson.toJson(btStats);
+                            String jsonMagneticCalibratedPost = gson.toJson(magneticCalibratedStats);
+                            String jsonMagneticUncalibratedPost = gson.toJson(magneticUncalibratedStats);
+
+                            String url;
+                            try {
+                                url = "http://" + serverIpText.getText().toString() + ":" + serverPortText.getText().toString() + "/IndoorPositioningServer/monitor/measurementService?WiFiMeasurements=" + URLEncoder.encode(jsonWifiPost, "UTF-8") + "&BTMeasurements=" + URLEncoder.encode(jsonBTPost, "UTF-8") + "&MagneticCalibratedMeasurements=" + URLEncoder.encode(jsonMagneticCalibratedPost, "UTF-8") + "&MagneticUncalibratedMeasurements=" + URLEncoder.encode(jsonMagneticUncalibratedPost, "UTF-8");
+                                System.out.println(url);
+                                new RestClient().execute(url);
+                            } catch (UnsupportedEncodingException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    };
+
+                    barProgressDialog3 = new ProgressDialog(MeasurementPerformer.this);
+                    barProgressDialog3.setTitle("Magnetic Field Measuring ...");
+                    barProgressDialog3.setMessage("Magnetic Field Measurement in Progress...");
+                    barProgressDialog3.setProgressStyle(barProgressDialog.STYLE_HORIZONTAL);
+                    barProgressDialog3.setProgress(0);
+                    barProgressDialog3.setCancelable(false);
+                    barProgressDialog3.setMax(Integer.parseInt(magneticMeasurementsCount));
+                    barProgressDialog3.show();
+
+                    magneticCountDownTimer.start();
+
                 }
             }
 
         }
     };
+
     @Override
     public void onDestroy() {
 
@@ -478,7 +603,7 @@ public class MeasurementPerformer extends Activity {
     }
 
 
-    public class UDPClient extends Application implements Runnable  {
+    public class UDPClient extends Application implements Runnable {
         private final static int LISTENING_PORT = 37766;
 
         @Override
@@ -490,15 +615,15 @@ public class MeasurementPerformer extends Activity {
                 socket.setBroadcast(true);
                 socket.setReuseAddress(true);
                 Log.e("UDP Receiver", "Listening...");
-                while(true){
+                while (true) {
                     //Listening on socket
                     byte[] buf = new byte[1024];
                     DatagramPacket packet = new DatagramPacket(buf, buf.length);
                     socket.receive(packet);
                     String message = new String(packet.getData()).trim();
-                    Log.e("UDP Receiver", "UDP Packet Received:"+message);
+                    Log.e("UDP Receiver", "UDP Packet Received:" + message);
                     message.replaceAll("[\\~\\`\\!\\@\\#\\$\\%\\^\\&\\*\\(\\)\\_\\-\\+\\{\\}\\[\\]\\;\"\\|\\\\,\\.\\/\\<\\>\\?]", "");
-                    if(message.contains("measure")) {
+                    if (message.contains("measure")) {
 
                         Log.e("UDP", message);
 
@@ -507,24 +632,24 @@ public class MeasurementPerformer extends Activity {
                         area = values[0];
                         wifiMeasurementsCount = values[1];
                         btMeasurementsCount = values[2];
+                        magneticMeasurementsCount = values[3];
 
                         btCount = 0;
                         wifiCount = 0;
                         wifiStats = new ArrayList<WifiStats>();
                         btStats = new ArrayList<BTStats>();
+                        magneticCalibratedStats = new ArrayList<MagneticCalibrated>();
+                        magneticUncalibratedStats = new ArrayList<MagneticUncalibrated>();
 
-                        if (area != null && wifiMeasurementsCount != null && serverIpText.getText() != null && serverPortText.getText() != null && btMeasurementsCount != null) {
-                            if (!area.equals("") && !wifiMeasurementsCount.equals("") && !serverIpText.getText().toString().equals("") && !serverPortText.getText().toString().equals("") && !btMeasurementsCount.equals("")) {
+                        if (area != null && wifiMeasurementsCount != null && serverIpText.getText() != null && serverPortText.getText() != null && btMeasurementsCount != null && magneticMeasurementsCount != null) {
+                            if (!area.equals("") && !wifiMeasurementsCount.equals("") && !serverIpText.getText().toString().equals("") && !serverPortText.getText().toString().equals("") && !btMeasurementsCount.equals("") && !magneticMeasurementsCount.equals("")) {
 
                                 System.out.println(area);
                                 System.out.println(wifiMeasurementsCount);
                                 System.out.println(serverIpText.getText().toString());
                                 System.out.println(serverPortText.getText().toString());
                                 System.out.println(btMeasurementsCount);
-
-                                chronometer.setBase(SystemClock.elapsedRealtime());
-                                chronometer.setFormat("Elapsed time: %s");
-                                chronometer.start();
+                                System.out.println(magneticMeasurementsCount);
 
                                 handler.sendMessage(new Message());
 
@@ -532,8 +657,7 @@ public class MeasurementPerformer extends Activity {
                             }
                         }
 
-                    }
-                    else {
+                    } else {
                         Log.e("UDP Receiver", "Unknown Button");
                     }
                 }
@@ -543,18 +667,21 @@ public class MeasurementPerformer extends Activity {
         }
     }
 
-    public Handler handler = new Handler(){
+    public Handler handler = new Handler() {
 
         // @Override
         public void handleMessage(Message msg) {
             //Do something with the message
+            chronometer.setBase(SystemClock.elapsedRealtime());
+            chronometer.setFormat("Elapsed time: %s");
+            chronometer.start();
             new InitBar().initBar();
         }
     };
 
-    public class InitBar{
+    public class InitBar {
 
-        public void initBar(){
+        public void initBar() {
 
             barProgressDialog = new ProgressDialog(MeasurementPerformer.this);
             barProgressDialog.setTitle("WiFi Measuring ...");
@@ -568,7 +695,6 @@ public class MeasurementPerformer extends Activity {
         }
 
     }
-
 
 
 }
