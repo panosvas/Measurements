@@ -25,6 +25,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.StrictMode;
 import android.os.SystemClock;
+import android.util.Base64;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -36,17 +37,22 @@ import android.widget.CheckBox;
 import android.widget.Chronometer;
 import android.widget.CompoundButton;
 import android.widget.EditText;
+import android.widget.ExpandableListView;
 import android.widget.Toast;
 
 import com.google.gson.Gson;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
+import org.apache.http.NameValuePair;
 import org.apache.http.StatusLine;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -96,6 +102,10 @@ public class MeasurementPerformer extends Activity {
     Chronometer chronometer;
     SensorManager sensorManager;
     CountDownTimer magneticCountDownTimer;
+    String jsonWifiPost;
+    String jsonBTPost;
+    String jsonMagneticCalibratedPost;
+    String jsonMagneticUncalibratedPost;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -512,17 +522,17 @@ public class MeasurementPerformer extends Activity {
 
                             Gson gson = new Gson();
 
-                            String jsonWifiPost = gson.toJson(wifiStats);
-                            String jsonBTPost = gson.toJson(btStats);
-                            String jsonMagneticCalibratedPost = gson.toJson(magneticCalibratedStats);
-                            String jsonMagneticUncalibratedPost = gson.toJson(magneticUncalibratedStats);
+                            jsonWifiPost = gson.toJson(wifiStats);
+                            jsonBTPost = gson.toJson(btStats);
+                            jsonMagneticCalibratedPost = gson.toJson(magneticCalibratedStats);
+                            jsonMagneticUncalibratedPost = gson.toJson(magneticUncalibratedStats);
 
                             String url;
                             try {
-                                url = "http://" + serverIpText.getText().toString() + ":" + serverPortText.getText().toString() + "/IndoorPositioningServer/monitor/measurementService?WiFiMeasurements=" + URLEncoder.encode(jsonWifiPost, "UTF-8") + "&BTMeasurements=" + URLEncoder.encode(jsonBTPost, "UTF-8") + "&MagneticCalibratedMeasurements=" + URLEncoder.encode(jsonMagneticCalibratedPost, "UTF-8") + "&MagneticUncalibratedMeasurements=" + URLEncoder.encode(jsonMagneticUncalibratedPost, "UTF-8");
+                                url = "http://" + serverIpText.getText().toString() + ":" + serverPortText.getText().toString() + "/IndoorPositioningServer/monitor/measurementService";//?WiFiMeasurements=" + URLEncoder.encode(jsonWifiPost, "UTF-8") + "&BTMeasurements=" + URLEncoder.encode(jsonBTPost, "UTF-8") + "&MagneticCalibratedMeasurements=" + URLEncoder.encode(jsonMagneticCalibratedPost, "UTF-8") + "&MagneticUncalibratedMeasurements=" + URLEncoder.encode(jsonMagneticUncalibratedPost, "UTF-8");
                                 System.out.println(url);
                                 new RestClient().execute(url);
-                            } catch (UnsupportedEncodingException e) {
+                            } catch (Exception e) {
                                 e.printStackTrace();
                             }
                         }
@@ -560,11 +570,23 @@ public class MeasurementPerformer extends Activity {
         @Override
         protected String doInBackground(String... uri) {
             HttpClient httpclient = new DefaultHttpClient();
+            HttpPost httppost = new HttpPost("http://" + serverIpText.getText().toString() + ":" + serverPortText.getText().toString() + "/IndoorPositioningServer/monitor/measurementService");
             HttpResponse response;
             String responseString = null;
             try {
-                response = httpclient.execute(new HttpGet(uri[0]));
-                StatusLine statusLine = response.getStatusLine();
+
+                List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(4);
+                nameValuePairs.add(new BasicNameValuePair("WiFiMeasurements", jsonWifiPost));
+                System.out.println(jsonBTPost);
+                nameValuePairs.add(new BasicNameValuePair("BTMeasurements", jsonBTPost));
+                nameValuePairs.add(new BasicNameValuePair("MagneticCalibratedMeasurements", jsonMagneticCalibratedPost));
+                nameValuePairs.add(new BasicNameValuePair("MagneticUncalibratedMeasurements", jsonMagneticUncalibratedPost));
+                httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+                //httppost.setHeader("Accept", "application/json");
+                httppost.setHeader("Content-type", "application/x-www-form-urlencoded; charset=UTF8");
+
+                response = httpclient.execute(httppost);
+                /*StatusLine statusLine = response.getStatusLine();
                 if (statusLine.getStatusCode() == HttpStatus.SC_OK) {
                     ByteArrayOutputStream out = new ByteArrayOutputStream();
                     response.getEntity().writeTo(out);
@@ -574,7 +596,7 @@ public class MeasurementPerformer extends Activity {
                     //Closes the connection.
                     response.getEntity().getContent().close();
                     throw new IOException(statusLine.getReasonPhrase());
-                }
+                }*/
             } catch (ClientProtocolException e) {
                 //TODO Handle problems..
             } catch (IOException e) {
