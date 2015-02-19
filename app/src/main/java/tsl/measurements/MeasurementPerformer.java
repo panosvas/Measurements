@@ -131,8 +131,8 @@ public class MeasurementPerformer extends Activity {
         wifiMeasurementsCountText.setEnabled(false);
         serverIpText = (EditText) findViewById(R.id.serverIpEditText);
         serverPortText = (EditText) findViewById(R.id.serverPortEditText);
-        btMeasurementsCountText = (EditText) findViewById(R.id.NoOfBTMeasurementsEditText);
-        btMeasurementsCountText.setEnabled(false);
+        //btMeasurementsCountText = (EditText) findViewById(R.id.NoOfBTMeasurementsEditText);
+        //btMeasurementsCountText.setEnabled(false);
         magneticMeasurementsCountText = (EditText) findViewById(R.id.NoOfMagneticMeasurementsEditText);
         magneticMeasurementsCountText.setEnabled(false);
 
@@ -147,19 +147,22 @@ public class MeasurementPerformer extends Activity {
 
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 
+        serverIpText.setText("192.168.1.101");
+        serverPortText.setText("8080");
+
         checkBoxManually.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
                     areaText.setEnabled(true);
                     wifiMeasurementsCountText.setEnabled(true);
-                    btMeasurementsCountText.setEnabled(true);
+                    //btMeasurementsCountText.setEnabled(true);
                     magneticMeasurementsCountText.setEnabled(true);
                     measureButton.setEnabled(true);
                 } else {
                     areaText.setEnabled(false);
                     wifiMeasurementsCountText.setEnabled(false);
-                    btMeasurementsCountText.setEnabled(false);
+                    //btMeasurementsCountText.setEnabled(false);
                     magneticMeasurementsCountText.setEnabled(false);
                     measureButton.setEnabled(false);
                 }
@@ -187,26 +190,26 @@ public class MeasurementPerformer extends Activity {
                 wifiMeasurementsCount = wifiMeasurementsCountText.getText().toString();
                 serverIpText = (EditText) findViewById(R.id.serverIpEditText);
                 serverPortText = (EditText) findViewById(R.id.serverPortEditText);
-                btMeasurementsCountText = (EditText) findViewById(R.id.NoOfBTMeasurementsEditText);
-                btMeasurementsCount = btMeasurementsCountText.getText().toString();
+                //btMeasurementsCountText = (EditText) findViewById(R.id.NoOfBTMeasurementsEditText);
+                //btMeasurementsCount = btMeasurementsCountText.getText().toString();
                 magneticMeasurementsCountText = (EditText) findViewById(R.id.NoOfMagneticMeasurementsEditText);
                 magneticMeasurementsCount = magneticMeasurementsCountText.getText().toString();
 
                 btCount = 0;
                 wifiCount = 0;
                 wifiStats = new ArrayList<WifiStats>();
-                btStats = new ArrayList<BTStats>();
+                //btStats = new ArrayList<BTStats>();
                 magneticCalibratedStats = new ArrayList<MagneticCalibrated>();
                 magneticUncalibratedStats = new ArrayList<MagneticUncalibrated>();
 
 
-                if (areaText.getText() != null && wifiMeasurementsCountText.getText() != null && serverIpText.getText() != null && serverPortText.getText() != null && btMeasurementsCountText.getText() != null && magneticMeasurementsCountText.getText() != null) {
-                    if (!areaText.getText().toString().equals("") && !wifiMeasurementsCountText.getText().toString().equals("") && !serverIpText.getText().toString().equals("") && !serverPortText.getText().toString().equals("") && !btMeasurementsCountText.getText().toString().equals("") && !magneticMeasurementsCountText.getText().toString().equals("")) {
+                if (areaText.getText() != null && wifiMeasurementsCountText.getText() != null && serverIpText.getText() != null && serverPortText.getText() != null && magneticMeasurementsCountText.getText() != null) {
+                    if (!areaText.getText().toString().equals("") && !wifiMeasurementsCountText.getText().toString().equals("") && !serverIpText.getText().toString().equals("") && !serverPortText.getText().toString().equals("") && !magneticMeasurementsCountText.getText().toString().equals("")) {
                         System.out.println(areaText.getText().toString());
                         System.out.println(wifiMeasurementsCountText.getText().toString());
                         System.out.println(serverIpText.getText().toString());
                         System.out.println(serverPortText.getText().toString());
-                        System.out.println(btMeasurementsCountText.getText().toString());
+                        //System.out.println(btMeasurementsCountText.getText().toString());
                         System.out.println(magneticMeasurementsCountText.getText().toString());
 
                         chronometer.setBase(SystemClock.elapsedRealtime());
@@ -371,7 +374,54 @@ public class MeasurementPerformer extends Activity {
 
                 barProgressDialog.dismiss();
 
-                barProgressDialog2 = new ProgressDialog(MeasurementPerformer.this);
+                CountDownTimer magneticCountDownTimer = new CountDownTimer((Integer.valueOf(magneticMeasurementsCount) + 1) * 1000, 1000) {
+                    @Override
+                    public void onTick(long millisUntilFinished) {
+                        barProgressDialog3.incrementProgressBy(1);
+                        sensorManager.registerListener(magneticListener, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_NORMAL);
+                        // Uncomment the line below in order to enable non calibrated magnetic field measurements as well
+                        // sensorManager.registerListener(magneticUncalibratedListener, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED), SensorManager.SENSOR_DELAY_NORMAL);
+                    }
+
+                    @Override
+                    public void onFinish() {
+
+                        barProgressDialog3.dismiss();
+
+                        ringProgressDialog = ProgressDialog.show(MeasurementPerformer.this, "Please wait...", "Uploading to Server...", true);
+                        ringProgressDialog.setCancelable(false);
+                        ringProgressDialog.show();
+
+                        Gson gson = new Gson();
+
+                        jsonWifiPost = gson.toJson(wifiStats);
+                        jsonBTPost = "{}";//gson.toJson(btStats);
+                        jsonMagneticCalibratedPost = gson.toJson(magneticCalibratedStats);
+                        jsonMagneticUncalibratedPost = gson.toJson(magneticUncalibratedStats);
+
+                        String url;
+                        try {
+                            url = "http://" + serverIpText.getText().toString() + ":" + serverPortText.getText().toString() + "/IndoorPositioningServer/monitor/measurementService";//?WiFiMeasurements=" + URLEncoder.encode(jsonWifiPost, "UTF-8") + "&BTMeasurements=" + URLEncoder.encode(jsonBTPost, "UTF-8") + "&MagneticCalibratedMeasurements=" + URLEncoder.encode(jsonMagneticCalibratedPost, "UTF-8") + "&MagneticUncalibratedMeasurements=" + URLEncoder.encode(jsonMagneticUncalibratedPost, "UTF-8");
+                            System.out.println(url);
+                            new RestClient().execute(url);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                };
+
+                barProgressDialog3 = new ProgressDialog(MeasurementPerformer.this);
+                barProgressDialog3.setTitle("Magnetic Field Measuring ...");
+                barProgressDialog3.setMessage("Magnetic Field Measurement in Progress...");
+                barProgressDialog3.setProgressStyle(barProgressDialog.STYLE_HORIZONTAL);
+                barProgressDialog3.setProgress(0);
+                barProgressDialog3.setCancelable(false);
+                barProgressDialog3.setMax(Integer.parseInt(magneticMeasurementsCount));
+                barProgressDialog3.show();
+
+                magneticCountDownTimer.start();
+
+                /*barProgressDialog2 = new ProgressDialog(MeasurementPerformer.this);
                 barProgressDialog2.setTitle("BT Measuring ...");
                 barProgressDialog2.setMessage("BT Measurement in Progress...");
                 barProgressDialog2.setProgressStyle(barProgressDialog.STYLE_HORIZONTAL);
@@ -380,7 +430,7 @@ public class MeasurementPerformer extends Activity {
                 barProgressDialog2.setMax(Integer.parseInt(btMeasurementsCount));
                 barProgressDialog2.show();
 
-                new MeasureBT().execute();
+                new MeasureBT().execute();*/
 
             } else {
 
@@ -502,13 +552,13 @@ public class MeasurementPerformer extends Activity {
 
                     barProgressDialog2.dismiss();
 
-                    CountDownTimer magneticCountDownTimer = new CountDownTimer((Integer.valueOf(magneticMeasurementsCount) + 1) * 1000, 1000) {
+                    /*CountDownTimer magneticCountDownTimer = new CountDownTimer((Integer.valueOf(magneticMeasurementsCount) + 1) * 1000, 1000) {
                         @Override
                         public void onTick(long millisUntilFinished) {
                             barProgressDialog3.incrementProgressBy(1);
                             sensorManager.registerListener(magneticListener, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_NORMAL);
                             // Uncomment the line below in order to enable non calibrated magnetic field measurements as well
-                            //sensorManager.registerListener(magneticUncalibratedListener, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED), SensorManager.SENSOR_DELAY_NORMAL);
+                            // sensorManager.registerListener(magneticUncalibratedListener, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED), SensorManager.SENSOR_DELAY_NORMAL);
                         }
 
                         @Override
@@ -547,7 +597,7 @@ public class MeasurementPerformer extends Activity {
                     barProgressDialog3.setMax(Integer.parseInt(magneticMeasurementsCount));
                     barProgressDialog3.show();
 
-                    magneticCountDownTimer.start();
+                    magneticCountDownTimer.start();*/
 
                 }
             }
@@ -577,7 +627,6 @@ public class MeasurementPerformer extends Activity {
 
                 List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(4);
                 nameValuePairs.add(new BasicNameValuePair("WiFiMeasurements", jsonWifiPost));
-                System.out.println(jsonBTPost);
                 nameValuePairs.add(new BasicNameValuePair("BTMeasurements", jsonBTPost));
                 nameValuePairs.add(new BasicNameValuePair("MagneticCalibratedMeasurements", jsonMagneticCalibratedPost));
                 nameValuePairs.add(new BasicNameValuePair("MagneticUncalibratedMeasurements", jsonMagneticUncalibratedPost));
@@ -611,7 +660,7 @@ public class MeasurementPerformer extends Activity {
             //Do anything with response..
             System.out.println("INFO: " + result);
             ringProgressDialog.dismiss();
-            unregisterReceiver(btReceiver);
+            //unregisterReceiver(btReceiver);
             unregisterReceiver(wifiReceiver);
 
             Uri notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);

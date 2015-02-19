@@ -1,9 +1,12 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools" android:layout_width="match_parent"
-    android:layout_height="match_parent" android:paddingLeft="@dimen/activity_horizontal_margin"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
-    android:paddingBottom="@dimen/activity_vertical_margin" tools:context=".MeasurementPerformer">
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    tools:context=".MeasurementPerformer">
 
     <ImageView
         android:layout_width="80dp"
@@ -37,7 +40,7 @@
             android:id="@+id/areaIdEditText"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="10dp"
-            android:hint="@string/Area"/>
+            android:hint="@string/Area" />
 
         <EditText
             android:layout_width="match_parent"
@@ -47,17 +50,7 @@
             android:id="@+id/NoOfWiFiMeasurementsEditText"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="10dp"
-            android:hint="@string/WifiMeasuremets"/>
-
-        <EditText
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="number"
-            android:ems="10"
-            android:id="@+id/NoOfBTMeasurementsEditText"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="10dp"
-            android:hint="@string/BtMeasurements"/>
+            android:hint="@string/WifiMeasuremets" />
 
         <EditText
             android:layout_width="match_parent"
@@ -75,7 +68,7 @@
             android:id="@+id/serverIpEditText"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="10dp"
-            android:hint="@string/serverIP"/>
+            android:hint="@string/serverIP" />
 
         <EditText
             android:layout_width="match_parent"
@@ -101,7 +94,7 @@
             android:text="@string/manually"
             android:id="@+id/manuallyMeasurementsCheckBox"
             android:layout_marginTop="10dp"
-            android:checked="false"/>
+            android:checked="false" />
 
         <CheckBox
             android:layout_width="wrap_content"
@@ -109,7 +102,7 @@
             android:text="@string/screenOn"
             android:id="@+id/screenOnCheckBox"
             android:layout_marginTop="5dp"
-            android:checked="true"/>
+            android:checked="true" />
 
         <Chronometer
             android:layout_width="wrap_content"
@@ -117,7 +110,7 @@
             android:id="@+id/chronometer"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="10dp"
-            android:textColor="#4169E1"/>
+            android:textColor="#4169E1" />
 
     </LinearLayout>
 
