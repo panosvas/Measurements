@@ -13,5 +13,6 @@
     <string name="BtMeasurements">BT Number of Measurements</string>
     <string name="manually">Manually Measurement</string>
     <string name="screenOn">Keep Screen On</string>
+    <string name="BleMeasuremets">BLE Number of Measurements</string>
 
 </resources>

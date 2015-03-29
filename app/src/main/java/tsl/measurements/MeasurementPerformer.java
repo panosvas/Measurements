@@ -23,6 +23,7 @@ import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Message;
+import android.os.RemoteException;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.util.Base64;
@@ -38,7 +39,13 @@ import android.widget.Chronometer;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ExpandableListView;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import com.estimote.sdk.Beacon;
+import com.estimote.sdk.BeaconManager;
+import com.estimote.sdk.Region;
+import com.estimote.sdk.Utils;
 
 import com.google.gson.Gson;
 
@@ -66,6 +73,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import tsl.measurements.ble.BeaconStats;
 import tsl.measurements.bluetooth.BTStats;
 import tsl.measurements.magnetic.MagneticCalibrated;
 import tsl.measurements.magnetic.MagneticUncalibrated;
@@ -74,6 +82,10 @@ import tsl.measurements.wifi.WifiStats;
 
 public class MeasurementPerformer extends Activity {
 
+    private static final Region ALL_ESTIMOTE_BEACONS_REGION = new Region("ALL", null, null, null);
+    BeaconManager beaconManager;
+
+    ArrayList<BeaconStats> beaconsStats = new ArrayList<BeaconStats>();
     ArrayList<WifiStats> wifiStats = new ArrayList<WifiStats>();
     ArrayList<BTStats> btStats = new ArrayList<BTStats>();
     ArrayList<MagneticCalibrated> magneticCalibratedStats = new ArrayList<MagneticCalibrated>();
@@ -86,11 +98,14 @@ public class MeasurementPerformer extends Activity {
     String btMeasurementsCount;
     EditText magneticMeasurementsCountText;
     String magneticMeasurementsCount;
+    EditText bleMeasurementsCountText;
+    String bleMeasurementsCount;
     EditText serverIpText;
     EditText serverPortText;
     ProgressDialog barProgressDialog;
     ProgressDialog barProgressDialog2;
     ProgressDialog barProgressDialog3;
+    ProgressDialog barProgressDialog4;
     ProgressDialog ringProgressDialog;
     CheckBox checkBoxManually;
     CheckBox checkBoxScreen;
@@ -99,6 +114,7 @@ public class MeasurementPerformer extends Activity {
     WifiManager.WifiLock wifiLock;
     int btCount = 0;
     int wifiCount = 0;
+    int bleCountInProgress = 0;
     Chronometer chronometer;
     SensorManager sensorManager;
     CountDownTimer magneticCountDownTimer;
@@ -106,6 +122,7 @@ public class MeasurementPerformer extends Activity {
     String jsonBTPost;
     String jsonMagneticCalibratedPost;
     String jsonMagneticUncalibratedPost;
+    String jsonBlePost;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -135,6 +152,8 @@ public class MeasurementPerformer extends Activity {
         //btMeasurementsCountText.setEnabled(false);
         magneticMeasurementsCountText = (EditText) findViewById(R.id.NoOfMagneticMeasurementsEditText);
         magneticMeasurementsCountText.setEnabled(false);
+        bleMeasurementsCountText = (EditText) findViewById(R.id.NoOfBleMeasurementsEditText);
+        bleMeasurementsCountText.setEnabled(false);
 
         measureButton = (Button) findViewById(R.id.measureButton);
         measureButton.setEnabled(false);
@@ -158,12 +177,14 @@ public class MeasurementPerformer extends Activity {
                     wifiMeasurementsCountText.setEnabled(true);
                     //btMeasurementsCountText.setEnabled(true);
                     magneticMeasurementsCountText.setEnabled(true);
+                    bleMeasurementsCountText.setEnabled(true);
                     measureButton.setEnabled(true);
                 } else {
                     areaText.setEnabled(false);
                     wifiMeasurementsCountText.setEnabled(false);
                     //btMeasurementsCountText.setEnabled(false);
                     magneticMeasurementsCountText.setEnabled(false);
+                    bleMeasurementsCountText.setEnabled(false);
                     measureButton.setEnabled(false);
                 }
             }
@@ -194,6 +215,8 @@ public class MeasurementPerformer extends Activity {
                 //btMeasurementsCount = btMeasurementsCountText.getText().toString();
                 magneticMeasurementsCountText = (EditText) findViewById(R.id.NoOfMagneticMeasurementsEditText);
                 magneticMeasurementsCount = magneticMeasurementsCountText.getText().toString();
+                bleMeasurementsCountText = (EditText) findViewById(R.id.NoOfBleMeasurementsEditText);
+                bleMeasurementsCount = bleMeasurementsCountText.getText().toString();
 
                 btCount = 0;
                 wifiCount = 0;
@@ -201,16 +224,18 @@ public class MeasurementPerformer extends Activity {
                 //btStats = new ArrayList<BTStats>();
                 magneticCalibratedStats = new ArrayList<MagneticCalibrated>();
                 magneticUncalibratedStats = new ArrayList<MagneticUncalibrated>();
+                beaconsStats = new ArrayList<BeaconStats>();
 
 
-                if (areaText.getText() != null && wifiMeasurementsCountText.getText() != null && serverIpText.getText() != null && serverPortText.getText() != null && magneticMeasurementsCountText.getText() != null) {
-                    if (!areaText.getText().toString().equals("") && !wifiMeasurementsCountText.getText().toString().equals("") && !serverIpText.getText().toString().equals("") && !serverPortText.getText().toString().equals("") && !magneticMeasurementsCountText.getText().toString().equals("")) {
+                if (areaText.getText() != null && wifiMeasurementsCountText.getText() != null && serverIpText.getText() != null && serverPortText.getText() != null && magneticMeasurementsCountText.getText() != null && bleMeasurementsCountText.getText() != null) {
+                    if (!areaText.getText().toString().equals("") && !wifiMeasurementsCountText.getText().toString().equals("") && !serverIpText.getText().toString().equals("") && !serverPortText.getText().toString().equals("") && !magneticMeasurementsCountText.getText().toString().equals("") && !bleMeasurementsCountText.getText().toString().equals("")) {
                         System.out.println(areaText.getText().toString());
                         System.out.println(wifiMeasurementsCountText.getText().toString());
                         System.out.println(serverIpText.getText().toString());
                         System.out.println(serverPortText.getText().toString());
                         //System.out.println(btMeasurementsCountText.getText().toString());
                         System.out.println(magneticMeasurementsCountText.getText().toString());
+                        System.out.println(bleMeasurementsCountText.getText().toString());
 
                         chronometer.setBase(SystemClock.elapsedRealtime());
                         chronometer.setFormat("Elapsed time: %s");
@@ -388,7 +413,7 @@ public class MeasurementPerformer extends Activity {
 
                         barProgressDialog3.dismiss();
 
-                        ringProgressDialog = ProgressDialog.show(MeasurementPerformer.this, "Please wait...", "Uploading to Server...", true);
+                        /*ringProgressDialog = ProgressDialog.show(MeasurementPerformer.this, "Please wait...", "Uploading to Server...", true);
                         ringProgressDialog.setCancelable(false);
                         ringProgressDialog.show();
 
@@ -406,7 +431,7 @@ public class MeasurementPerformer extends Activity {
                             new RestClient().execute(url);
                         } catch (Exception e) {
                             e.printStackTrace();
-                        }
+                        }*/
                     }
                 };
 
@@ -605,12 +630,123 @@ public class MeasurementPerformer extends Activity {
         }
     };
 
+
+    private void retrieveBLEStats() {
+
+        barProgressDialog4 = new ProgressDialog(MeasurementPerformer.this);
+        barProgressDialog4.setTitle("BLE Measuring ...");
+        barProgressDialog4.setMessage("BLE Measurement in Progress...");
+        barProgressDialog4.setProgressStyle(barProgressDialog.STYLE_HORIZONTAL);
+        barProgressDialog4.setProgress(0);
+        barProgressDialog4.setCancelable(false);
+        barProgressDialog4.setMax(Integer.parseInt(bleMeasurementsCount));
+        barProgressDialog4.show();
+
+        beaconManager = new BeaconManager(this);
+        if (beaconManager.hasBluetooth() && beaconManager.isBluetoothEnabled()) {
+
+            beaconManager.setRangingListener(new BeaconManager.RangingListener() {
+                @Override
+                public void onBeaconsDiscovered(Region region, final List<Beacon> beacons) {
+                    // Note that results are not delivered on UI thread.
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+
+                            if (bleCountInProgress < Integer.parseInt(bleMeasurementsCount)) {
+
+                                DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyy HH:mm:ss");
+                                Date date = new Date();
+                                String time = dateFormat.format(date);
+
+                                barProgressDialog4.incrementProgressBy(1);
+
+                                for (Beacon beacon : beacons) {
+
+                                    BeaconStats beaconStats = new BeaconStats();
+
+                                    beaconStats.setMac(beacon.getMacAddress());
+                                    beaconStats.setMajor(String.valueOf(beacon.getMajor()));
+                                    beaconStats.setMinor(String.valueOf(beacon.getMinor()));
+                                    beaconStats.setProximityUUID(beacon.getProximityUUID());
+                                    beaconStats.setTxPower(String.valueOf(beacon.getMeasuredPower()));
+                                    beaconStats.setRssi(String.valueOf(beacon.getRssi()));
+                                    beaconStats.setEstimatedDistance(String.valueOf(Utils.computeAccuracy(beacon)));
+                                    beaconStats.setTime(time);
+                                    beaconStats.setArea(area);
+
+                                    Log.i("INFO", "Found beacons: " + beaconStats.getMac() + " " + beaconStats.getMajor() + " " + beaconStats.getMinor() + " " + beaconStats.getProximityUUID() + " " + beaconStats.getTxPower() + " " + beaconStats.getRssi() + " " + beaconStats.getEstimatedDistance() + "m");
+
+                                    beaconsStats.add(beaconStats);
+
+                                }
+
+                                bleCountInProgress++;
+
+                            } else {
+
+                                barProgressDialog4.dismiss();
+
+                                ringProgressDialog = ProgressDialog.show(MeasurementPerformer.this, "Please wait...", "Uploading to Server...", true);
+                                ringProgressDialog.setCancelable(false);
+                                ringProgressDialog.show();
+
+                                Gson gson = new Gson();
+
+                                jsonWifiPost = gson.toJson(wifiStats);
+                                jsonBTPost = "{}";//gson.toJson(btStats);
+                                jsonMagneticCalibratedPost = gson.toJson(magneticCalibratedStats);
+                                jsonMagneticUncalibratedPost = gson.toJson(magneticUncalibratedStats);
+                                jsonBlePost = gson.toJson(beaconsStats);
+
+                                String url;
+                                try {
+                                    url = "http://" + serverIpText.getText().toString() + ":" + serverPortText.getText().toString() + "/IndoorPositioningServer/monitor/measurementService";//?WiFiMeasurements=" + URLEncoder.encode(jsonWifiPost, "UTF-8") + "&BTMeasurements=" + URLEncoder.encode(jsonBTPost, "UTF-8") + "&MagneticCalibratedMeasurements=" + URLEncoder.encode(jsonMagneticCalibratedPost, "UTF-8") + "&MagneticUncalibratedMeasurements=" + URLEncoder.encode(jsonMagneticUncalibratedPost, "UTF-8");
+                                    System.out.println(url);
+                                    new RestClient().execute(url);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+
+                                try {
+                                    Log.i("INFO", "Stopping BLE Ranging...");
+                                    beaconManager.stopRanging(ALL_ESTIMOTE_BEACONS_REGION);
+                                } catch (RemoteException e) {
+                                    Log.d("Error", "Error while stopping ranging", e);
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+
+            beaconManager.connect(new BeaconManager.ServiceReadyCallback() {
+                @Override
+                public void onServiceReady() {
+                    try {
+                        beaconManager.startRanging(ALL_ESTIMOTE_BEACONS_REGION);
+                    } catch (RemoteException e) {
+                        Log.e("ERROR", "Cannot start ranging", e);
+                    }
+                }
+            });
+        }
+
+    }
+
+
     @Override
     public void onDestroy() {
 
         unregisterReceiver(btReceiver);
         unregisterReceiver(wifiReceiver);
         wifiLock.release();
+
+        try {
+            beaconManager.stopRanging(ALL_ESTIMOTE_BEACONS_REGION);
+        } catch (RemoteException e) {
+            Log.d("Error", "Error while stopping ranging", e);
+        }
 
     }
 
@@ -630,6 +766,7 @@ public class MeasurementPerformer extends Activity {
                 nameValuePairs.add(new BasicNameValuePair("BTMeasurements", jsonBTPost));
                 nameValuePairs.add(new BasicNameValuePair("MagneticCalibratedMeasurements", jsonMagneticCalibratedPost));
                 nameValuePairs.add(new BasicNameValuePair("MagneticUncalibratedMeasurements", jsonMagneticUncalibratedPost));
+                nameValuePairs.add(new BasicNameValuePair("BleMeasurements", jsonBlePost));
                 httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
                 //httppost.setHeader("Accept", "application/json");
                 httppost.setHeader("Content-type", "application/x-www-form-urlencoded; charset=UTF8");
@@ -705,6 +842,7 @@ public class MeasurementPerformer extends Activity {
                         wifiMeasurementsCount = values[1];
                         btMeasurementsCount = values[2];
                         magneticMeasurementsCount = values[3];
+                        bleMeasurementsCount = values[4];
 
                         btCount = 0;
                         wifiCount = 0;
@@ -712,9 +850,10 @@ public class MeasurementPerformer extends Activity {
                         btStats = new ArrayList<BTStats>();
                         magneticCalibratedStats = new ArrayList<MagneticCalibrated>();
                         magneticUncalibratedStats = new ArrayList<MagneticUncalibrated>();
+                        beaconsStats = new ArrayList<BeaconStats>();
 
-                        if (area != null && wifiMeasurementsCount != null && serverIpText.getText() != null && serverPortText.getText() != null && btMeasurementsCount != null && magneticMeasurementsCount != null) {
-                            if (!area.equals("") && !wifiMeasurementsCount.equals("") && !serverIpText.getText().toString().equals("") && !serverPortText.getText().toString().equals("") && !btMeasurementsCount.equals("") && !magneticMeasurementsCount.equals("")) {
+                        if (area != null && wifiMeasurementsCount != null && serverIpText.getText() != null && serverPortText.getText() != null && btMeasurementsCount != null && magneticMeasurementsCount != null && bleMeasurementsCount != null) {
+                            if (!area.equals("") && !wifiMeasurementsCount.equals("") && !serverIpText.getText().toString().equals("") && !serverPortText.getText().toString().equals("") && !btMeasurementsCount.equals("") && !magneticMeasurementsCount.equals("") && !bleMeasurementsCount.equals("")) {
 
                                 System.out.println(area);
                                 System.out.println(wifiMeasurementsCount);
@@ -722,6 +861,7 @@ public class MeasurementPerformer extends Activity {
                                 System.out.println(serverPortText.getText().toString());
                                 System.out.println(btMeasurementsCount);
                                 System.out.println(magneticMeasurementsCount);
+                                System.out.println(bleMeasurementsCount);
 
                                 handler.sendMessage(new Message());
 
