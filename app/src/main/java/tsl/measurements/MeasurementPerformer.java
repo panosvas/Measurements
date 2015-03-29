@@ -413,6 +413,8 @@ public class MeasurementPerformer extends Activity {
 
                         barProgressDialog3.dismiss();
 
+                        retrieveBLEStats();
+
                         /*ringProgressDialog = ProgressDialog.show(MeasurementPerformer.this, "Please wait...", "Uploading to Server...", true);
                         ringProgressDialog.setCancelable(false);
                         ringProgressDialog.show();
@@ -648,7 +650,7 @@ public class MeasurementPerformer extends Activity {
             beaconManager.setRangingListener(new BeaconManager.RangingListener() {
                 @Override
                 public void onBeaconsDiscovered(Region region, final List<Beacon> beacons) {
-                    // Note that results are not delivered on UI thread.
+
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
